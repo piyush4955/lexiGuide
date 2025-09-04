@@ -1,0 +1,13 @@
+# Secret API Keys - DO NOT UPLOAD
+backend/.env
+
+# Python Virtual Environment
+backend/venv/
+
+# Python cache files
+__pycache__/
+*.pyc
+
+# IDE/Editor specific files
+.vscode/
+.idea/
