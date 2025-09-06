@@ -3,104 +3,195 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LexiGuard Hackathon</title>
+    <title>LexiGuard - Your Document Vault</title>
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; max-width: 800px; margin: 40px auto; padding: 20px; line-height: 1.6; background-color: #f9f9f9; color: #333;}
-        h1, h3 { color: #4a4a4a; }
-        .container { background-color: #fff; border: 1px solid #ddd; padding: 25px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-bottom: 20px; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; max-width: 900px; margin: 40px auto; padding: 20px; line-height: 1.6; background-color: #f9f9f9; color: #333;}
+        h1, h2, h3 { color: #4a4a4a; }
+        .container, .auth-container, .dashboard-container { background-color: #fff; border: 1px solid #ddd; padding: 25px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-bottom: 20px; }
         .hidden { display: none; }
         #loader { border: 4px solid #f3f3f3; border-top: 4px solid #007bff; border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; margin: 20px auto; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        pre { white-space: pre-wrap; word-wrap: break-word; background-color: #f4f4f4; padding: 15px; border-radius: 5px; border: 1px solid #eee; font-family: 'Menlo', 'Consolas', monospace; font-size: 14px; }
+        pre { white-space: pre-wrap; word-wrap: break-word; background-color: #f4f4f4; padding: 15px; border-radius: 5px; border: 1px solid #eee; }
         button { background-color: #007bff; color: white; border: none; padding: 10px 15px; border-radius: 5px; cursor: pointer; font-size: 16px; }
         button:hover { background-color: #0056b3; }
-        input, select { padding: 8px; border: 1px solid #ccc; border-radius: 4px; margin-right: 10px; }
+        input, select { padding: 8px; border: 1px solid #ccc; border-radius: 4px; margin-right: 10px; margin-bottom: 10px; }
         .upload-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
         .analysis-section { margin-top: 25px; }
         .risk-analysis { border-left: 4px solid #d9534f; }
         .summary-analysis { border-left: 4px solid #5cb85c; }
+        .auth-form input { width: 95%; }
+        #auth-toggle { color: #007bff; cursor: pointer; text-decoration: underline; }
+        .past-analysis-item { border-bottom: 1px solid #eee; padding: 10px 0; }
     </style>
 </head>
 <body>
-    <h1>LexiGuard - Multilingual Document Analyzer</h1>
-    <p>Select your language, document type, upload the PDF, and get a tailored analysis.</p>
-
-    <div class="container">
-        <h3>1. Configure and Upload</h3>
-        <div class="upload-controls">
-            <select id="language-selector">
-                <option value="English">English</option>
-                <option value="Hinglish">Hinglish</option>
-                <option value="Hindi">हिन्दी</option>
-                <option value="Telugu">తెలుగు</option>
-                <option value="Tamil">தமிழ்</option>
-                <option value="Gujarati">ગુજરાતી</option>
-            </select>
-            <select id="doc-type-selector">
-                <option value="Rental Agreement">Rental Agreement</option>
-                <option value="Loan Contract">Loan Contract</option>
-                <option value="Terms of Service">Terms of Service</option>
-            </select>
-            <input type="file" id="doc-uploader" accept=".pdf">
-            <button onclick="handleAnalyze()">Analyze</button>
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+        <h1>LexiGuard</h1>
+        <div id="user-info" class="hidden">
+            <span id="user-email"></span>
+            <button id="logout-button" style="margin-left: 15px; background-color: #6c757d;">Logout</button>
+        </div>
+    </div>
+    <div id="auth-section">
+        <div id="login-container" class="auth-container">
+            <h2>Login</h2>
+            <div class="auth-form">
+                <input type="email" id="login-email" placeholder="Email">
+                <input type="password" id="login-password" placeholder="Password">
+                <button id="login-button">Login</button>
+                <p>Don't have an account? <span id="auth-toggle" onclick="toggleAuthForms()">Sign up</span></p>
+            </div>
+        </div>
+        <div id="signup-container" class="auth-container hidden">
+            <h2>Sign Up</h2>
+            <div class="auth-form">
+                <input type="email" id="signup-email" placeholder="Email">
+                <input type="password" id="signup-password" placeholder="Password">
+                <button id="signup-button">Sign Up</button>
+                <p>Already have an account? <span id="auth-toggle" onclick="toggleAuthForms()">Login</span></p>
+            </div>
+        </div>
+    </div>
+    <div id="app-content" class="hidden">
+        <div class="container">
+            <h3>1. Analyze New Document</h3>
+            <div class="upload-controls">
+                <select id="language-selector"><option value="English">English</option><option value="Hinglish">Hinglish</option><option value="Hindi">हिन्दी</option><option value="Telugu">తెలుగు</option><option value="Tamil">தமிழ்</option><option value="Gujarati">ગુજરાતી</option></select>
+                <select id="doc-type-selector"><option value="Rental Agreement">Rental Agreement</option><option value="Loan Contract">Loan Contract</option><option value="Terms of Service">Terms of Service</option></select>
+                <input type="file" id="doc-uploader" accept=".pdf">
+                <button onclick="handleAnalyze()">Analyze</button>
+            </div>
+        </div>
+        <div id="loader" class="hidden"></div>
+        <div id="results" class="hidden">
+            <hr>
+            <div class="analysis-section"><h3>✅ Summary & Action Plan</h3><pre id="summary-text" class="summary-analysis"></pre></div>
+            <div class="analysis-section"><h3>🚨 Risk Radar</h3><pre id="risk-text" class="risk-analysis"></pre></div>
+        </div>
+        <div id="dashboard" class="dashboard-container">
+            <h2>Your Document History</h2>
+            <div id="past-analyses-list"></div>
         </div>
     </div>
 
-    <div id="loader" class="hidden"></div>
-    
-    <div id="results" class="hidden">
-        <hr>
-        <div class="analysis-section">
-            <h3>✅ Summary & Action Plan</h3>
-            <pre id="summary-text" class="summary-analysis"></pre>
-        </div>
-        
-        <div class="analysis-section">
-            <h3>🚨 Risk Radar</h3>
-            <pre id="risk-text" class="risk-analysis"></pre>
-        </div>
-        
-        <div class="analysis-section">
-            <h3>2. Ask a Specific Question</h3>
-            <input type="text" id="question-input" placeholder="e.g., What happens if I pay late?" style="width: 70%;">
-            <button onclick="handleAsk()">Ask</button>
-            <pre id="answer-text" style="margin-top: 10px;"></pre>
-        </div>
-    </div>
+    <script type="module">
+        // Import the functions you need from the SDKs you need
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+        import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+        import { getFirestore, collection, doc, getDoc, getDocs, query, orderBy, setDoc, Timestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-    <script>
-        let fullDocumentText = "";
+        // *********************************************************************************
+        // ** STEP 1: PASTE YOUR FIREBASE CONFIGURATION OBJECT HERE **
+        // ** Replace the placeholder below with the object from your screenshot **
+        // *********************************************************************************
+        // For Firebase JS SDK v7.20.0 and later, measurementId is optional
+        const firebaseConfig = {
+        apiKey: "AIzaSyA33tEkjkJjoZr0l-DNxwevv9phRA9GkjY",
+        authDomain: "lexiguide-hackathon-2025.firebaseapp.com",
+        projectId: "lexiguide-hackathon-2025",
+        storageBucket: "lexiguide-hackathon-2025.firebasestorage.app",
+        messagingSenderId: "814528861476",
+        appId: "1:814528861476:web:7d3ce97018abd1a8dc0fb1",
+        measurementId: "G-FHQW7RH75X"
+        };
+        
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
 
-        async function handleAnalyze() {
-            const uploader = document.getElementById('doc-uploader');
-            const docTypeSelector = document.getElementById('doc-type-selector');
-            const langSelector = document.getElementById('language-selector'); // Get language selector
-            
-            if (uploader.files.length === 0) {
-                alert("Please select a PDF file.");
-                return;
+        // --- All the JS logic from before, but updated for the new SDK ---
+
+        // UI Elements
+        const authSection = document.getElementById('auth-section');
+        const appContent = document.getElementById('app-content');
+        const userInfo = document.getElementById('user-info');
+        const userEmailSpan = document.getElementById('user-email');
+        const loginContainer = document.getElementById('login-container');
+        const signupContainer = document.getElementById('signup-container');
+        
+        // --- AUTHENTICATION LOGIC ---
+
+        window.toggleAuthForms = function() {
+            loginContainer.classList.toggle('hidden');
+            signupContainer.classList.toggle('hidden');
+        }
+
+        onAuthStateChanged(auth, user => {
+            if (user) {
+                authSection.classList.add('hidden');
+                appContent.classList.remove('hidden');
+                userInfo.classList.remove('hidden');
+                userEmailSpan.textContent = user.email;
+                loadUserDocuments(user.uid);
+            } else {
+                authSection.classList.remove('hidden');
+                appContent.classList.add('hidden');
+                userInfo.classList.add('hidden');
+                userEmailSpan.textContent = '';
             }
+        });
+        
+        document.getElementById('signup-button').addEventListener('click', () => {
+            const email = document.getElementById('signup-email').value;
+            const password = document.getElementById('signup-password').value;
+            createUserWithEmailAndPassword(auth, email, password)
+                .catch(error => alert(error.message));
+        });
+
+        document.getElementById('login-button').addEventListener('click', () => {
+            const email = document.getElementById('login-email').value;
+            const password = document.getElementById('login-password').value;
+            signInWithEmailAndPassword(auth, email, password)
+                .catch(error => alert(error.message));
+        });
+
+        document.getElementById('logout-button').addEventListener('click', () => {
+            signOut(auth);
+        });
+
+
+        // --- CORE APP LOGIC ---
+
+        window.handleAnalyze = async function() {
+            const user = auth.currentUser;
+            if (!user) { alert("Please log in to analyze a document."); return; }
+
+            const uploader = document.getElementById('doc-uploader');
+            if (uploader.files.length === 0) { alert("Please select a PDF file."); return; }
+
+            const docTypeSelector = document.getElementById('doc-type-selector');
+            const langSelector = document.getElementById('language-selector');
+            const file = uploader.files[0];
 
             const formData = new FormData();
-            formData.append('document', uploader.files[0]);
+            formData.append('document', file);
             formData.append('doc_type', docTypeSelector.value);
-            formData.append('language', langSelector.value); // Add selected language to form data
+            formData.append('language', langSelector.value);
+            formData.append('filename', file.name);
 
             document.getElementById('loader').classList.remove('hidden');
             document.getElementById('results').classList.add('hidden');
 
             try {
-                const response = await fetch('/analyze', { method: 'POST', body: formData });
+                const token = await user.getIdToken();
+                const response = await fetch('/analyze', {
+                    method: 'POST',
+                    headers: { 'Authorization': 'Bearer ' + token },
+                    body: formData
+                });
+
                 if (!response.ok) {
                     const errorData = await response.json();
                     throw new Error(errorData.error || "An unknown error occurred.");
                 }
 
                 const data = await response.json();
-                fullDocumentText = data.full_text;
                 document.getElementById('summary-text').textContent = data.summary_and_checklist;
                 document.getElementById('risk-text').textContent = data.risk_analysis;
                 document.getElementById('results').classList.remove('hidden');
+                loadUserDocuments(user.uid);
+
             } catch (error) {
                 alert("Error: " + error.message);
             } finally {
@@ -108,34 +199,52 @@
             }
         }
 
-        async function handleAsk() {
-            const question = document.getElementById('question-input').value;
-            const langSelector = document.getElementById('language-selector'); // Get language selector for Q&A
-            
-            if (!question) { alert("Please enter a question."); return; }
-            if (!fullDocumentText) { alert("Please analyze a document first."); return; }
-
-            document.getElementById('loader').classList.remove('hidden');
-            document.getElementById('answer-text').textContent = "";
+        async function loadUserDocuments(userId) {
+            const listElement = document.getElementById('past-analyses-list');
+            listElement.innerHTML = "Loading history...";
 
             try {
-                const response = await fetch('/ask', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        full_text: fullDocumentText,
-                        question: question,
-                        language: langSelector.value // Add selected language to the request
-                    })
-                });
-                if (!response.ok) throw new Error((await response.json()).error);
+                const documentsColRef = collection(db, 'users', userId, 'documents');
+                const q = query(documentsColRef, orderBy('analyzedAt', 'desc'));
+                const querySnapshot = await getDocs(q);
                 
-                const data = await response.json();
-                document.getElementById('answer-text').textContent = data.answer;
-            } catch (error) {
-                alert("Error: " + error);
-            } finally {
-                document.getElementById('loader').classList.add('hidden');
+                listElement.innerHTML = "";
+                if (querySnapshot.empty) {
+                    listElement.innerHTML = "<p>No documents analyzed yet.</p>";
+                    return;
+                }
+
+                querySnapshot.forEach(docSnap => {
+                    const docData = docSnap.data();
+                    const item = document.createElement('div');
+                    item.className = 'past-analysis-item';
+                    item.innerHTML = `
+                        <h4>${docData.filename} (${docData.doc_type})</h4>
+                        <p>Analyzed on: ${docData.analyzedAt.toDate().toLocaleString()}</p>
+                        <button onclick="viewAnalysis('${docSnap.id}')">View Analysis</button>
+                    `;
+                    listElement.appendChild(item);
+                });
+            } catch(error) {
+                console.error("Error loading documents:", error);
+                listElement.innerHTML = "<p>Could not load document history.</p>";
+            }
+        }
+        
+        window.viewAnalysis = async function(docId) {
+            const user = auth.currentUser;
+            if (!user) return;
+
+            const docRef = doc(db, 'users', user.uid, 'documents', docId);
+            const docSnap = await getDoc(docRef);
+            if (docSnap.exists()) {
+                const data = docSnap.data();
+                document.getElementById('summary-text').textContent = data.summary_and_checklist;
+                document.getElementById('risk-text').textContent = data.risk_analysis;
+                document.getElementById('results').classList.remove('hidden');
+                window.scrollTo(0, 0);
+            } else {
+                alert("Could not find analysis.");
             }
         }
     </script>
