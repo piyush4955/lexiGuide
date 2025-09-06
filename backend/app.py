@@ -1,5 +1,6 @@
 # backend/app.py
 import os
+import requests
 from flask import Flask, request, jsonify, send_from_directory
 from dotenv import load_dotenv
 import google.generativeai as genai
@@ -10,6 +11,7 @@ genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 app = Flask(__name__, static_folder='../frontend', static_url_path='/')
 
 def extract_text_from_pdf(file_stream):
+    """Extracts text from a PDF file stream."""
     try:
         pdf_reader = PyPDF2.PdfReader(file_stream)
         text = "".join(page.extract_text() for page in pdf_reader.pages)
@@ -18,7 +20,18 @@ def extract_text_from_pdf(file_stream):
         print(f"Error reading PDF: {e}")
         return None
 
+def fetch_text_from_url(url):
+    """Fetches text content from a given URL."""
+    try:
+        response = requests.get(url, timeout=10)
+        response.raise_for_status() # Raise an HTTPError for bad responses (4xx or 5xx)
+        return response.text
+    except requests.exceptions.RequestException as e:
+        print(f"Error fetching URL: {e}")
+        return None
+
 def get_gemini_response(prompt):
+    """Sends a prompt to the Gemini API and returns the response."""
     model = genai.GenerativeModel('gemini-1.5-flash-latest')
     try:
         response = model.generate_content(prompt)
@@ -108,21 +121,32 @@ ANSWER in {language}:
 
 @app.route('/analyze', methods=['POST'])
 def analyze_document():
-    if 'document' not in request.files:
-        return jsonify({"error": "No file part"}), 400
-    
-    file = request.files['document']
     doc_type = request.form.get('doc_type')
-    language = request.form.get('language', 'English') # Default to English if not provided
+    language = request.form.get('language', 'English')
+    document_text = None
 
-    if not file or not doc_type:
-        return jsonify({"error": "Missing file or document type"}), 400
+    # Step 1: Check for combined text/link input
+    source_type = request.form.get('source_type')
+    if source_type == 'text':
+        document_text = request.form.get('content')
+    elif source_type == 'link':
+        url = request.form.get('content')
+        if url:
+            document_text = fetch_text_from_url(url)
+            if not document_text:
+                return jsonify({"error": "Failed to fetch content from the provided URL."}), 400
+    
+    # Step 2: If no text/link, check for a file upload
+    if not document_text and 'document' in request.files:
+        file = request.files['document']
+        if file.filename != '':
+            document_text = extract_text_from_pdf(file.stream)
+
+    # Step 3: Handle missing input
+    if not document_text or len(document_text.strip()) < 50:
+        return jsonify({"error": "Could not extract sufficient readable text."}), 400
 
     try:
-        document_text = extract_text_from_pdf(file.stream)
-        if not document_text or len(document_text.strip()) < 50:
-             return jsonify({"error": "Could not extract sufficient readable text."}), 400
-
         # Select the correct base prompt
         if "Loan Contract" == doc_type:
             summary_prompt_template = LOAN_PROMPT

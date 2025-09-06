@@ -19,6 +19,10 @@
         .analysis-section { margin-top: 25px; }
         .risk-analysis { border-left: 4px solid #d9534f; }
         .summary-analysis { border-left: 4px solid #5cb85c; }
+        .modal { display: none; position: fixed; z-index: 1; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgb(0,0,0); background-color: rgba(0,0,0,0.4); justify-content: center; align-items: center; }
+        .modal-content { background-color: #fefefe; margin: auto; padding: 20px; border: 1px solid #888; width: 80%; max-width: 400px; border-radius: 8px; text-align: center; }
+        .close-btn { color: #aaa; float: right; font-size: 28px; font-weight: bold; }
+        .close-btn:hover, .close-btn:focus { color: black; text-decoration: none; cursor: pointer; }
     </style>
 </head>
 <body>
@@ -41,6 +45,13 @@
                 <option value="Loan Contract">Loan Contract</option>
                 <option value="Terms of Service">Terms of Service</option>
             </select>
+            
+            <!-- Combined input area -->
+            <div class="bg-slate-50 border border-slate-200 rounded-xl p-6">
+                <h2 class="text-xl font-semibold mb-3">2. Paste Your Text or Link</h2>
+                <textarea id="combinedInput" rows="6" class="w-full rounded-lg border-2 border-slate-200 focus:border-indigo-500 focus:outline-none p-3 transition-colors duration-200 resize-none" placeholder="Enter or paste your text or a link here..."></textarea>
+            </div>
+        
             <input type="file" id="doc-uploader" accept=".pdf">
             <button onclick="handleAnalyze()">Analyze</button>
         </div>
@@ -68,23 +79,82 @@
         </div>
     </div>
 
+    <!-- Custom Modal for Messages -->
+    <div id="modal" class="modal">
+        <div class="modal-content">
+            <span class="close-btn">&times;</span>
+            <h3 id="modal-title"></h3>
+            <p id="modal-message"></p>
+        </div>
+    </div>
+
     <script>
         let fullDocumentText = "";
 
+        // Modal functions
+        function showModal(title, message) {
+            const modal = document.getElementById('modal');
+            document.getElementById('modal-title').textContent = title;
+            document.getElementById('modal-message').textContent = message;
+            modal.style.display = 'flex';
+        }
+
+        document.querySelector('.close-btn').onclick = function() {
+            document.getElementById('modal').style.display = 'none';
+        }
+
+        window.onclick = function(event) {
+            if (event.target == document.getElementById('modal')) {
+                document.getElementById('modal').style.display = 'none';
+            }
+        }
+
+        async function readFileContent(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (e) => resolve(e.target.result);
+                reader.onerror = (e) => reject(new Error('Failed to read file.'));
+                reader.readAsText(file);
+            });
+        }
+
         async function handleAnalyze() {
             const uploader = document.getElementById('doc-uploader');
+            const combinedInput = document.getElementById('combinedInput');
             const docTypeSelector = document.getElementById('doc-type-selector');
-            const langSelector = document.getElementById('language-selector'); // Get language selector
-            
-            if (uploader.files.length === 0) {
-                alert("Please select a PDF file.");
+            const langSelector = document.getElementById('language-selector');
+            const urlRegex = /^(https?|ftp):\/\/[^\s/$.?#].[^\s]*$/i;
+
+            let sourceContent = null;
+            let sourceType = null;
+
+            // Prioritize combined input
+            if (combinedInput.value.trim() !== '') {
+                sourceContent = combinedInput.value.trim();
+                if (urlRegex.test(sourceContent)) {
+                    sourceType = 'link';
+                } else {
+                    sourceType = 'text';
+                }
+            } else if (uploader.files.length > 0) {
+                // Fallback to file uploader
+                sourceContent = uploader.files[0];
+                sourceType = 'file';
+            } else {
+                showModal("Input Required", "Please provide a PDF file or text/link to analyze.");
                 return;
             }
 
             const formData = new FormData();
-            formData.append('document', uploader.files[0]);
             formData.append('doc_type', docTypeSelector.value);
-            formData.append('language', langSelector.value); // Add selected language to form data
+            formData.append('language', langSelector.value);
+
+            if (sourceType === 'file') {
+                formData.append('document', sourceContent);
+            } else {
+                formData.append('content', sourceContent);
+                formData.append('source_type', sourceType);
+            }
 
             document.getElementById('loader').classList.remove('hidden');
             document.getElementById('results').classList.add('hidden');
@@ -102,7 +172,7 @@
                 document.getElementById('risk-text').textContent = data.risk_analysis;
                 document.getElementById('results').classList.remove('hidden');
             } catch (error) {
-                alert("Error: " + error.message);
+                showModal("Error", "Error: " + error.message);
             } finally {
                 document.getElementById('loader').classList.add('hidden');
             }
@@ -110,10 +180,10 @@
 
         async function handleAsk() {
             const question = document.getElementById('question-input').value;
-            const langSelector = document.getElementById('language-selector'); // Get language selector for Q&A
+            const langSelector = document.getElementById('language-selector');
             
-            if (!question) { alert("Please enter a question."); return; }
-            if (!fullDocumentText) { alert("Please analyze a document first."); return; }
+            if (!question) { showModal("Question Required", "Please enter a question."); return; }
+            if (!fullDocumentText) { showModal("Document Required", "Please analyze a document or text first."); return; }
 
             document.getElementById('loader').classList.remove('hidden');
             document.getElementById('answer-text').textContent = "";
@@ -125,7 +195,7 @@
                     body: JSON.stringify({
                         full_text: fullDocumentText,
                         question: question,
-                        language: langSelector.value // Add selected language to the request
+                        language: langSelector.value
                     })
                 });
                 if (!response.ok) throw new Error((await response.json()).error);
@@ -133,7 +203,7 @@
                 const data = await response.json();
                 document.getElementById('answer-text').textContent = data.answer;
             } catch (error) {
-                alert("Error: " + error);
+                showModal("Error", "Error: " + error.message);
             } finally {
                 document.getElementById('loader').classList.add('hidden');
             }
@@ -141,4 +211,3 @@
     </script>
 </body>
 </html>
-
