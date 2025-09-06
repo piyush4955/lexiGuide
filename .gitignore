@@ -1,5 +1,6 @@
 # Secret API Keys - DO NOT UPLOAD
 backend/.env
+backend/serviceAccountKey.json
 
 # Python Virtual Environment
 backend/venv/
