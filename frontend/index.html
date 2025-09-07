@@ -6,23 +6,38 @@
     <title>LexiGuard - Your Document Vault</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; max-width: 900px; margin: 40px auto; padding: 20px; line-height: 1.6; background-color: #f9f9f9; color: #333;}
-        h1, h2, h3 { color: #4a4a4a; }
-        .container, .auth-container, .dashboard-container { background-color: #fff; border: 1px solid #ddd; padding: 25px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-bottom: 20px; }
+        :root {
+            --bg-color: #f9f9f9; --text-color: #333; --header-color: #4a4a4a;
+            --container-bg: #fff; --container-border: #ddd; --pre-bg: #f4f4f4;
+            --button-bg: #007bff; --button-hover-bg: #0056b3;
+        }
+        [data-theme="dark"] {
+            --bg-color: #121212; --text-color: #e0e0e0; --header-color: #f5f5f5;
+            --container-bg: #1e1e1e; --container-border: #444; --pre-bg: #2c2c2c;
+            --button-bg: #0d6efd; --button-hover-bg: #0a58ca;
+        }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; max-width: 900px; margin: 40px auto; padding: 20px; line-height: 1.6; background-color: var(--bg-color); color: var(--text-color); transition: background-color 0.3s, color 0.3s; }
+        h1, h2, h3 { color: var(--header-color); }
+        .container, .auth-container, .dashboard-container { background-color: var(--container-bg); border: 1px solid var(--container-border); padding: 25px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-bottom: 20px; transition: background-color 0.3s; }
         .hidden { display: none; }
-        #loader { border: 4px solid #f3f3f3; border-top: 4px solid #007bff; border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; margin: 20px auto; }
+        #loader { border: 4px solid #f3f3f3; border-top: 4px solid var(--button-bg); border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; margin: 20px auto; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        pre { white-space: pre-wrap; word-wrap: break-word; background-color: #f4f4f4; padding: 15px; border-radius: 5px; border: 1px solid #eee; }
-        button { background-color: #007bff; color: white; border: none; padding: 10px 15px; border-radius: 5px; cursor: pointer; font-size: 16px; }
-        button:hover { background-color: #0056b3; }
-        input, select { padding: 8px; border: 1px solid #ccc; border-radius: 4px; margin-right: 10px; margin-bottom: 10px; }
+        pre { white-space: pre-wrap; word-wrap: break-word; background-color: var(--pre-bg); padding: 15px; border-radius: 5px; border: 1px solid var(--container-border); transition: background-color 0.3s; }
+        button { background-color: var(--button-bg); color: white; border: none; padding: 10px 15px; border-radius: 5px; cursor: pointer; font-size: 16px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); transition: background-color 0.2s, transform 0.2s; }
+        button:hover { background-color: var(--button-hover-bg); transform: translateY(-1px); }
+        input, select { padding: 8px; border: 1px solid var(--container-border); border-radius: 4px; margin-right: 10px; margin-bottom: 10px; background-color: var(--container-bg); color: var(--text-color); }
+        .header-controls { display: flex; align-items: center; gap: 15px; }
+        .theme-switch, .help-button { font-size: 24px; cursor: pointer; user-select: none; }
+        .legal-term { color: #007bff; border-bottom: 1px dotted #007bff; cursor: help; }
+        .tour-step { position: fixed; background: var(--container-bg); color: var(--text-color); padding: 20px; border-radius: 8px; max-width: 350px; box-shadow: 0 5px 15px rgba(0,0,0,0.3); z-index: 1000; border: 1px solid var(--container-border); }
+        .tour-nav { margin-top: 15px; display: flex; justify-content: space-between; }
         .upload-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
         .analysis-section { margin-top: 25px; }
         .risk-analysis { border-left: 4px solid #d9534f; }
         .summary-analysis { border-left: 4px solid #5cb85c; }
         .auth-form input { width: 95%; }
         #auth-toggle { color: #007bff; cursor: pointer; text-decoration: underline; }
-        .past-analysis-item { border-bottom: 1px solid #eee; padding: 10px 0; }
+        .past-analysis-item { border-bottom: 1px solid var(--container-border); padding: 10px 0; }
         .tags-input { flex-grow: 1; min-width: 200px; }
         .dashboard-controls { display: flex; align-items: center; gap: 10px; margin-bottom: 15px; }
         .action-buttons button { margin-right: 10px; background-color: #6c757d; font-size: 14px; padding: 8px 12px; }
@@ -31,9 +46,10 @@
 <body>
     <div style="display: flex; justify-content: space-between; align-items: center;">
         <h1>LexiGuard</h1>
-        <div id="user-info" class="hidden">
-            <span id="user-email"></span>
-            <button id="logout-button" style="margin-left: 15px; background-color: #6c757d;">Logout</button>
+        <div class="header-controls">
+            <div id="help-btn" class="help-button" title="Start Guided Tour">❓</div>
+            <div id="theme-toggle" class="theme-switch" title="Toggle Dark/Light Mode">🌙</div>
+            <div id="user-info" class="hidden"><span id="user-email"></span><button id="logout-button" style="margin-left: 15px;">Logout</button></div>
         </div>
     </div>
     <div id="auth-section">
@@ -83,8 +99,10 @@
         import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
         import { getFirestore, collection, doc, getDoc, getDocs, query, where, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
         
-        // --- PASTE YOUR FIREBASE CONFIG HERE ---
-       // For Firebase JS SDK v7.20.0 and later, measurementId is optional
+        // =================================================================================
+        // ** CRITICAL STEP: PASTE YOUR UNIQUE FIREBASE CONFIGURATION OBJECT HERE **
+        // =================================================================================
+        // For Firebase JS SDK v7.20.0 and later, measurementId is optional
         const firebaseConfig = {
         apiKey: "AIzaSyA33tEkjkJjoZr0l-DNxwevv9phRA9GkjY",
         authDomain: "lexiguide-hackathon-2025.firebaseapp.com",
@@ -94,26 +112,27 @@
         appId: "1:814528861476:web:7d3ce97018abd1a8dc0fb1",
         measurementId: "G-FHQW7RH75X"
         };
-        
+                
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
-
         let currentDocId = null;
 
-        // --- AUTHENTICATION LOGIC ---
+        // --- UI ELEMENTS ---
         const authSection = document.getElementById('auth-section');
         const appContent = document.getElementById('app-content');
         const userInfo = document.getElementById('user-info');
         const userEmailSpan = document.getElementById('user-email');
         const loginContainer = document.getElementById('login-container');
         const signupContainer = document.getElementById('signup-container');
-        
+        const themeToggle = document.getElementById('theme-toggle');
+        const helpBtn = document.getElementById('help-btn');
+
+        // --- AUTH LOGIC ---
         window.toggleAuthForms = function() {
             loginContainer.classList.toggle('hidden');
             signupContainer.classList.toggle('hidden');
         }
-
         onAuthStateChanged(auth, user => {
             if (user) {
                 authSection.classList.add('hidden');
@@ -121,6 +140,9 @@
                 userInfo.classList.remove('hidden');
                 userEmailSpan.textContent = user.email;
                 loadUserDocuments(user.uid);
+                if (!localStorage.getItem('lexiguide_tour_completed')) {
+                    setTimeout(startTour, 1000);
+                }
             } else {
                 authSection.classList.remove('hidden');
                 appContent.classList.add('hidden');
@@ -128,32 +150,27 @@
                 userEmailSpan.textContent = '';
             }
         });
-        
         document.getElementById('signup-button').addEventListener('click', () => {
             const email = document.getElementById('signup-email').value;
             const password = document.getElementById('signup-password').value;
             createUserWithEmailAndPassword(auth, email, password).catch(error => alert(error.message));
         });
-
         document.getElementById('login-button').addEventListener('click', () => {
             const email = document.getElementById('login-email').value;
             const password = document.getElementById('login-password').value;
             signInWithEmailAndPassword(auth, email, password).catch(error => alert(error.message));
         });
-
         document.getElementById('logout-button').addEventListener('click', () => {
             signOut(auth);
         });
 
-        // --- SIMPLIFIED CORE APP LOGIC ---
+        // --- CORE APP LOGIC ---
         const ANALYZE_URL = 'http://127.0.0.1:5000/analyze';
-
         window.handleAnalyze = async function() {
             const user = auth.currentUser;
             if (!user) { alert("Please log in."); return; }
             const uploader = document.getElementById('doc-uploader');
             if (uploader.files.length === 0) { alert("Please select a PDF file."); return; }
-
             const file = uploader.files[0];
             const formData = new FormData();
             formData.append('document', file);
@@ -161,12 +178,10 @@
             formData.append('language', document.getElementById('language-selector').value);
             formData.append('filename', file.name);
             formData.append('tags', document.getElementById('tags-input').value);
-
             document.getElementById('loader').classList.remove('hidden');
             document.getElementById('results').classList.add('hidden');
             const uploadStatusP = document.getElementById('upload-status');
             if (uploadStatusP) uploadStatusP.textContent = 'Analyzing... this may take a moment.';
-
             try {
                 const token = await user.getIdToken();
                 const response = await fetch(ANALYZE_URL, {
@@ -174,24 +189,20 @@
                     headers: { 'Authorization': 'Bearer ' + token },
                     body: formData
                 });
-
                 if (!response.ok) {
                     const errorData = await response.json();
                     throw new Error(errorData.error || "Analysis failed.");
                 }
-
                 const data = await response.json();
-                
                 currentDocId = data.doc_id;
                 document.getElementById('summary-text').textContent = data.summary_and_checklist;
                 document.getElementById('risk-text').textContent = data.risk_analysis;
+                makeAnalysisInteractive('summary-text');
+                makeAnalysisInteractive('risk-text');
                 document.getElementById('results').classList.remove('hidden');
-                
                 if (uploadStatusP) uploadStatusP.textContent = 'Analysis complete!';
                 uploader.value = '';
-                
                 loadUserDocuments(user.uid);
-
             } catch (error) {
                 alert("Error: " + error.message);
                 if (uploadStatusP) uploadStatusP.textContent = '';
@@ -199,28 +210,23 @@
                 document.getElementById('loader').classList.add('hidden');
             }
         }
-        
         window.handleSearch = function() {
             const user = auth.currentUser;
             if (!user) return;
             const searchTerm = document.getElementById('search-input').value;
             loadUserDocuments(user.uid, searchTerm.trim().toLowerCase());
         }
-
         async function loadUserDocuments(userId, searchTerm = null) {
             const listElement = document.getElementById('past-analyses-list');
             listElement.innerHTML = "Loading history...";
-
             try {
                 let documentsQuery;
                 const documentsColRef = collection(db, 'users', userId, 'documents');
-                
                 if (searchTerm) {
                     documentsQuery = query(documentsColRef, where("tags", "array-contains", searchTerm), orderBy('analyzedAt', 'desc'));
                 } else {
                     documentsQuery = query(documentsColRef, orderBy('analyzedAt', 'desc'));
                 }
-
                 const querySnapshot = await getDocs(documentsQuery);
                 listElement.innerHTML = "";
                 if (querySnapshot.empty) {
@@ -244,26 +250,24 @@
                 listElement.innerHTML = "<p>Could not load document history.</p>";
             }
         }
-        
         window.viewAnalysis = async function(docId) {
             const user = auth.currentUser;
             if (!user) return;
-            
             const docRef = doc(db, 'users', user.uid, 'documents', docId);
             const docSnap = await getDoc(docRef);
-
             if (docSnap.exists()) {
                 const data = docSnap.data();
-                currentDocId = docId; // Set current doc ID for sharing
+                currentDocId = docId;
                 document.getElementById('summary-text').textContent = data.summary_and_checklist;
                 document.getElementById('risk-text').textContent = data.risk_analysis;
+                makeAnalysisInteractive('summary-text');
+                makeAnalysisInteractive('risk-text');
                 document.getElementById('results').classList.remove('hidden');
                 window.scrollTo(0, 0);
             } else {
                 alert("Could not find analysis.");
             }
         }
-        
         window.handleExport = function() {
             const { jsPDF } = window.jspdf;
             const doc = new jsPDF();
@@ -277,12 +281,10 @@
             doc.text(riskText, 10, 20, { maxWidth: 180 });
             doc.save("LexiGuide-Analysis.pdf");
         }
-
         window.handleShare = async function() {
             const user = auth.currentUser;
             if (!user || !currentDocId) {
-                alert("Please view an analysis before sharing.");
-                return;
+                alert("Please view an analysis before sharing."); return;
             }
             try {
                 const token = await user.getIdToken();
@@ -292,8 +294,7 @@
                     body: JSON.stringify({ doc_id: currentDocId })
                 });
                 if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.error);
+                    const errorData = await response.json(); throw new Error(errorData.error);
                 }
                 const data = await response.json();
                 const shareLink = `${window.location.origin}/share.html?id=${data.share_id}`;
@@ -302,6 +303,88 @@
                 alert("Could not create share link: " + error.message);
             }
         }
+        
+        // --- NEW FEATURES: GLOSSARY, THEME, ONBOARDING ---
+        const LEGAL_TERMS = ["indemnity", "escrow", "lessee", "lessor", "collateral", "tenure", "sublet", "arbitration", "liability", "jurisdiction", "notary", "stamp duty", "force majeure", "annexure", "perpetuity", "waiver"];
+        function makeAnalysisInteractive(elementId) {
+            const element = document.getElementById(elementId);
+            if (!element) return;
+            let content = element.innerHTML;
+            LEGAL_TERMS.forEach(term => {
+                const regex = new RegExp(`\\b(${term})\\b`, 'gi');
+                content = content.replace(regex, `<span class="legal-term" onclick="handleTermClick(this)">$1</span>`);
+            });
+            element.innerHTML = content;
+        }
+        window.handleTermClick = async function(element) {
+            const term = element.innerText.toLowerCase();
+            const language = document.getElementById('language-selector').value;
+            try {
+                const response = await fetch('/explain_term', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ term, language })
+                });
+                if (!response.ok) throw new Error("Could not fetch explanation.");
+                const data = await response.json();
+                alert(`"${term.charAt(0).toUpperCase() + term.slice(1)}"\n\n${data.explanation}`);
+            } catch (error) {
+                alert(`Could not get an explanation for "${term}".`);
+            }
+        }
+        const currentTheme = localStorage.getItem('theme');
+        if (currentTheme) {
+            document.documentElement.setAttribute('data-theme', currentTheme);
+            if (currentTheme === 'dark') themeToggle.textContent = '☀️';
+        }
+        themeToggle.addEventListener('click', () => {
+            let theme = document.documentElement.getAttribute('data-theme');
+            if (theme === 'dark') {
+                document.documentElement.removeAttribute('data-theme');
+                localStorage.removeItem('theme');
+                themeToggle.textContent = '🌙';
+            } else {
+                document.documentElement.setAttribute('data-theme', 'dark');
+                localStorage.setItem('theme', 'dark');
+                themeToggle.textContent = '☀️';
+            }
+        });
+        
+        const tourSteps = [
+            { element: '.header-controls', title: 'Welcome!', text: 'This is LexiGuard. Let\'s quickly go over the key features.' },
+            { element: '#tags-input', title: '1. Add Tags', text: 'Before uploading, add tags to organize and search for your documents later.' },
+            { element: '.upload-controls', title: '2. Select & Upload', text: 'Choose your language, document type, and then upload your PDF file for analysis.' },
+            { element: '#dashboard', title: '3. Document History', text: 'All your past analyses are saved here. You can search them by the tags you added.' },
+            { element: '#theme-toggle', title: 'Toggle Theme', text: 'You can switch between light and dark mode anytime.' }
+        ];
+        function showTourStep(index) {
+            const existingTourStep = document.querySelector('.tour-step');
+            if (existingTourStep) existingTourStep.remove();
+            if (index >= tourSteps.length) { localStorage.setItem('lexiguide_tour_completed', 'true'); return; }
+            const step = tourSteps[index];
+            const targetElement = document.querySelector(step.element);
+            if (!targetElement) return;
+            const tourStepDiv = document.createElement('div');
+            tourStepDiv.className = 'tour-step';
+            const targetRect = targetElement.getBoundingClientRect();
+            let top = targetRect.bottom + 10;
+            let left = targetRect.left;
+            if ((top + 150) > window.innerHeight) { top = targetRect.top - 160; }
+            if ((left + 350) > window.innerWidth) { left = window.innerWidth - 360; }
+            tourStepDiv.style.left = `${left}px`;
+            tourStepDiv.style.top = `${top}px`;
+            tourStepDiv.innerHTML = `
+                <h4>${step.title}</h4><p>${step.text}</p>
+                <div class="tour-nav">
+                    <button id="tour-prev" ${index === 0 ? 'disabled' : ''}>Prev</button>
+                    <button id="tour-next">${index === tourSteps.length - 1 ? 'Finish' : 'Next'}</button>
+                </div>`;
+            document.body.appendChild(tourStepDiv);
+            document.getElementById('tour-next').onclick = () => showTourStep(index + 1);
+            if(index > 0) document.getElementById('tour-prev').onclick = () => showTourStep(index - 1);
+        }
+        function startTour() { showTourStep(0); }
+        helpBtn.addEventListener('click', startTour);
     </script>
 </body>
 </html>
