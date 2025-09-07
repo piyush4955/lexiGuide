@@ -36,6 +36,7 @@
         .analysis-section { margin-top: 25px; }
         .risk-analysis { border-left: 4px solid #d9534f; }
         .summary-analysis { border-left: 4px solid #5cb85c; }
+        .missing-analysis { border-left: 4px solid #f0ad4e; }
         .auth-form input { width: 95%; }
         #auth-toggle { color: #007bff; cursor: pointer; text-decoration: underline; }
         .past-analysis-item { border-bottom: 1px solid var(--container-border); padding: 10px 0; }
@@ -88,11 +89,12 @@
         <div id="loader" class="hidden"></div>
         <div id="results" class="hidden">
             <hr>
-            <div class="analysis-section"><h3>⭐ Key Information at a Glance</h3><div id="key-info-card" class="key-info-card"></div></div>
+            <div class="analysis-section"><h3>⭐ Key Information & Scores</h3><div id="key-info-card" class="key-info-card"></div></div>
             <div class="action-buttons"><button onclick="handleExport()">Export as PDF</button><button onclick="handleShare()">Share Analysis</button></div>
             <div class="analysis-section"><h3>✅ Summary & Action Plan</h3><pre id="summary-text" class="summary-analysis"></pre></div>
             <div class="analysis-section"><h3>🚨 Risk Radar</h3><pre id="risk-text" class="risk-analysis"></pre></div>
             <div class="analysis-section"><h3>❓ Questions You Should Ask</h3><pre id="questions-text"></pre></div>
+            <div class="analysis-section"><h3>⚠️ What Might Be Missing</h3><pre id="missing-clauses-text" class="missing-analysis"></pre></div>
             <div class="analysis-section"><h3>📜 Stamp Duty & Registration Guidance</h3><pre id="stamp-duty-text"></pre></div>
         </div>
         <div id="dashboard" class="dashboard-container">
@@ -125,7 +127,7 @@
         // =================================================================================
         // ** CRITICAL STEP: PASTE YOUR UNIQUE FIREBASE CONFIGURATION OBJECT HERE **
         // =================================================================================
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+        // For Firebase JS SDK v7.20.0 and later, measurementId is optional
         const firebaseConfig = {
         apiKey: "AIzaSyA33tEkjkJjoZr0l-DNxwevv9phRA9GkjY",
         authDomain: "lexiguide-hackathon-2025.firebaseapp.com",
@@ -218,29 +220,14 @@
                 }
                 const data = await response.json();
                 currentDocId = data.doc_id;
-
-                const keyInfoCard = document.getElementById('key-info-card');
-                keyInfoCard.innerHTML = '';
-                if (data.key_info && Object.keys(data.key_info).length > 0) {
-                    for (const [key, value] of Object.entries(data.key_info)) {
-                        const item = document.createElement('div');
-                        item.className = 'info-item';
-                        const label = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-                        item.innerHTML = `<span class="label">${label}</span><span class="value">${value}</span>`;
-                        keyInfoCard.appendChild(item);
-                    }
-                } else {
-                     keyInfoCard.innerHTML = '<p>No structured key information was extracted.</p>';
-                }
-                
+                populateKeyInfoCard(data.key_info);
                 document.getElementById('summary-text').textContent = data.summary_and_checklist;
                 document.getElementById('risk-text').textContent = data.risk_analysis;
                 document.getElementById('questions-text').textContent = data.questions_to_ask;
+                document.getElementById('missing-clauses-text').textContent = data.missing_clauses;
                 document.getElementById('stamp-duty-text').textContent = data.stamp_duty_guidance;
-                
                 makeAnalysisInteractive('summary-text');
                 makeAnalysisInteractive('risk-text');
-                
                 document.getElementById('results').classList.remove('hidden');
                 if (uploadStatusP) uploadStatusP.textContent = 'Analysis complete!';
                 uploader.value = '';
@@ -300,33 +287,44 @@
             if (docSnap.exists()) {
                 const data = docSnap.data();
                 currentDocId = docId;
-
-                const keyInfoCard = document.getElementById('key-info-card');
-                keyInfoCard.innerHTML = '';
-                if (data.key_info && Object.keys(data.key_info).length > 0) {
-                    for (const [key, value] of Object.entries(data.key_info)) {
-                        const item = document.createElement('div');
-                        item.className = 'info-item';
-                        const label = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-                        item.innerHTML = `<span class="label">${label}</span><span class="value">${value}</span>`;
-                        keyInfoCard.appendChild(item);
-                    }
-                } else {
-                     keyInfoCard.innerHTML = '<p>No structured key information was found for this document.</p>';
-                }
-
+                populateKeyInfoCard(data.key_info);
                 document.getElementById('summary-text').textContent = data.summary_and_checklist;
                 document.getElementById('risk-text').textContent = data.risk_analysis;
                 document.getElementById('questions-text').textContent = data.questions_to_ask;
+                document.getElementById('missing-clauses-text').textContent = data.missing_clauses;
                 document.getElementById('stamp-duty-text').textContent = data.stamp_duty_guidance;
-                
                 makeAnalysisInteractive('summary-text');
                 makeAnalysisInteractive('risk-text');
-                
                 document.getElementById('results').classList.remove('hidden');
                 window.scrollTo(0, 0);
             } else {
                 alert("Could not find analysis.");
+            }
+        }
+        function populateKeyInfoCard(keyInfo) {
+            const keyInfoCard = document.getElementById('key-info-card');
+            keyInfoCard.innerHTML = '';
+            if (!keyInfo || Object.keys(keyInfo).length === 0) {
+                keyInfoCard.innerHTML = '<p>No structured key information was extracted.</p>';
+                return;
+            }
+            const createScoreVisual = (score) => {
+                let stars = '';
+                for (let i = 0; i < 10; i++) {
+                    stars += i < score ? '★' : '☆';
+                }
+                return `<span style="color: #f0ad4e;">${stars}</span> (${score}/10)`;
+            };
+            for (const [key, value] of Object.entries(keyInfo)) {
+                const item = document.createElement('div');
+                item.className = 'info-item';
+                const label = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                let displayValue = value;
+                if (key === 'readability_score' || key === 'fairness_score') {
+                    displayValue = createScoreVisual(value);
+                }
+                item.innerHTML = `<span class="label">${label}</span><span class="value">${displayValue}</span>`;
+                keyInfoCard.appendChild(item);
             }
         }
         window.handleExport = function() {
@@ -412,7 +410,7 @@
         function makeAnalysisInteractive(elementId) {
             const element = document.getElementById(elementId);
             if (!element) return;
-            let content = element.textContent; // Use textContent to avoid issues with existing HTML
+            let content = element.textContent;
             LEGAL_TERMS.forEach(term => {
                 const regex = new RegExp(`\\b(${term})\\b`, 'gi');
                 content = content.replace(regex, `<span class="legal-term" onclick="handleTermClick(this)">$1</span>`);
