@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LexiGuard - Your Document Vault</title>
+    <title>LexiGuard - Your Document AI Assistant</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <style>
         :root {
@@ -18,14 +18,15 @@
         }
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; max-width: 900px; margin: 40px auto; padding: 20px; line-height: 1.6; background-color: var(--bg-color); color: var(--text-color); transition: background-color 0.3s, color 0.3s; }
         h1, h2, h3 { color: var(--header-color); }
-        .container, .auth-container, .dashboard-container { background-color: var(--container-bg); border: 1px solid var(--container-border); padding: 25px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-bottom: 20px; transition: background-color 0.3s; }
+        .container, .auth-container, .dashboard-container, .feature-container { background-color: var(--container-bg); border: 1px solid var(--container-border); padding: 25px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-bottom: 20px; transition: background-color 0.3s; }
         .hidden { display: none; }
         #loader { border: 4px solid #f3f3f3; border-top: 4px solid var(--button-bg); border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; margin: 20px auto; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         pre { white-space: pre-wrap; word-wrap: break-word; background-color: var(--pre-bg); padding: 15px; border-radius: 5px; border: 1px solid var(--container-border); transition: background-color 0.3s; }
         button { background-color: var(--button-bg); color: white; border: none; padding: 10px 15px; border-radius: 5px; cursor: pointer; font-size: 16px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); transition: background-color 0.2s, transform 0.2s; }
         button:hover { background-color: var(--button-hover-bg); transform: translateY(-1px); }
-        input, select { padding: 8px; border: 1px solid var(--container-border); border-radius: 4px; margin-right: 10px; margin-bottom: 10px; background-color: var(--container-bg); color: var(--text-color); }
+        input, select, textarea { padding: 8px; border: 1px solid var(--container-border); border-radius: 4px; margin-right: 10px; margin-bottom: 10px; background-color: var(--container-bg); color: var(--text-color); width: 95%; }
+        select { width: auto; }
         .header-controls { display: flex; align-items: center; gap: 15px; }
         .theme-switch, .help-button { font-size: 24px; cursor: pointer; user-select: none; }
         .legal-term { color: #007bff; border-bottom: 1px dotted #007bff; cursor: help; }
@@ -41,6 +42,10 @@
         .tags-input { flex-grow: 1; min-width: 200px; }
         .dashboard-controls { display: flex; align-items: center; gap: 10px; margin-bottom: 15px; }
         .action-buttons button { margin-right: 10px; background-color: #6c757d; font-size: 14px; padding: 8px 12px; }
+        .key-info-card { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; background-color: var(--pre-bg); padding: 20px; border-radius: 8px; margin-bottom: 20px; }
+        .info-item { display: flex; flex-direction: column; }
+        .info-item .label { font-size: 0.9em; color: #888; }
+        .info-item .value { font-size: 1.1em; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -69,7 +74,7 @@
         </div>
     </div>
     <div id="app-content" class="hidden">
-        <div class="container">
+        <div class="container" id="main-analyzer">
             <h3>1. Analyze New Document</h3>
             <div class="upload-controls">
                 <input type="text" id="tags-input" class="tags-input" placeholder="Add tags, comma-separated (e.g., rental, 2025)">
@@ -83,14 +88,32 @@
         <div id="loader" class="hidden"></div>
         <div id="results" class="hidden">
             <hr>
+            <div class="analysis-section"><h3>⭐ Key Information at a Glance</h3><div id="key-info-card" class="key-info-card"></div></div>
             <div class="action-buttons"><button onclick="handleExport()">Export as PDF</button><button onclick="handleShare()">Share Analysis</button></div>
             <div class="analysis-section"><h3>✅ Summary & Action Plan</h3><pre id="summary-text" class="summary-analysis"></pre></div>
             <div class="analysis-section"><h3>🚨 Risk Radar</h3><pre id="risk-text" class="risk-analysis"></pre></div>
+            <div class="analysis-section"><h3>❓ Questions You Should Ask</h3><pre id="questions-text"></pre></div>
+            <div class="analysis-section"><h3>📜 Stamp Duty & Registration Guidance</h3><pre id="stamp-duty-text"></pre></div>
         </div>
         <div id="dashboard" class="dashboard-container">
             <h2>Your Document History</h2>
             <div class="dashboard-controls"><input type="text" id="search-input" placeholder="Search by tag..."><button onclick="handleSearch()">Search</button></div>
             <div id="past-analyses-list"></div>
+        </div>
+        <div class="feature-container container" id="clause-analyzer">
+            <h3>Clause Deep Dive</h3>
+            <p>Paste a single confusing clause from your document for a detailed explanation.</p>
+            <textarea id="clause-input" placeholder="Paste your clause here..."></textarea>
+            <button onclick="handleClauseAnalyze()">Analyze Clause</button>
+            <pre id="clause-result" class="hidden"></pre>
+        </div>
+        <div class="feature-container container" id="document-comparer">
+            <h3>Document Comparison ("What's Changed?")</h3>
+            <p>Upload an old and new version of a document to see the differences.</p>
+            <div>Old Document: <input type="file" id="doc-a-uploader" accept=".pdf"></div>
+            <div>New Document: <input type="file" id="doc-b-uploader" accept=".pdf"></div>
+            <button onclick="handleCompare()">Compare Documents</button>
+            <pre id="compare-result" class="hidden"></pre>
         </div>
     </div>
 
@@ -102,7 +125,7 @@
         // =================================================================================
         // ** CRITICAL STEP: PASTE YOUR UNIQUE FIREBASE CONFIGURATION OBJECT HERE **
         // =================================================================================
-        // For Firebase JS SDK v7.20.0 and later, measurementId is optional
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
         const firebaseConfig = {
         apiKey: "AIzaSyA33tEkjkJjoZr0l-DNxwevv9phRA9GkjY",
         authDomain: "lexiguide-hackathon-2025.firebaseapp.com",
@@ -112,7 +135,7 @@
         appId: "1:814528861476:web:7d3ce97018abd1a8dc0fb1",
         measurementId: "G-FHQW7RH75X"
         };
-                
+        
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
@@ -195,10 +218,29 @@
                 }
                 const data = await response.json();
                 currentDocId = data.doc_id;
+
+                const keyInfoCard = document.getElementById('key-info-card');
+                keyInfoCard.innerHTML = '';
+                if (data.key_info && Object.keys(data.key_info).length > 0) {
+                    for (const [key, value] of Object.entries(data.key_info)) {
+                        const item = document.createElement('div');
+                        item.className = 'info-item';
+                        const label = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                        item.innerHTML = `<span class="label">${label}</span><span class="value">${value}</span>`;
+                        keyInfoCard.appendChild(item);
+                    }
+                } else {
+                     keyInfoCard.innerHTML = '<p>No structured key information was extracted.</p>';
+                }
+                
                 document.getElementById('summary-text').textContent = data.summary_and_checklist;
                 document.getElementById('risk-text').textContent = data.risk_analysis;
+                document.getElementById('questions-text').textContent = data.questions_to_ask;
+                document.getElementById('stamp-duty-text').textContent = data.stamp_duty_guidance;
+                
                 makeAnalysisInteractive('summary-text');
                 makeAnalysisInteractive('risk-text');
+                
                 document.getElementById('results').classList.remove('hidden');
                 if (uploadStatusP) uploadStatusP.textContent = 'Analysis complete!';
                 uploader.value = '';
@@ -258,10 +300,29 @@
             if (docSnap.exists()) {
                 const data = docSnap.data();
                 currentDocId = docId;
+
+                const keyInfoCard = document.getElementById('key-info-card');
+                keyInfoCard.innerHTML = '';
+                if (data.key_info && Object.keys(data.key_info).length > 0) {
+                    for (const [key, value] of Object.entries(data.key_info)) {
+                        const item = document.createElement('div');
+                        item.className = 'info-item';
+                        const label = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                        item.innerHTML = `<span class="label">${label}</span><span class="value">${value}</span>`;
+                        keyInfoCard.appendChild(item);
+                    }
+                } else {
+                     keyInfoCard.innerHTML = '<p>No structured key information was found for this document.</p>';
+                }
+
                 document.getElementById('summary-text').textContent = data.summary_and_checklist;
                 document.getElementById('risk-text').textContent = data.risk_analysis;
+                document.getElementById('questions-text').textContent = data.questions_to_ask;
+                document.getElementById('stamp-duty-text').textContent = data.stamp_duty_guidance;
+                
                 makeAnalysisInteractive('summary-text');
                 makeAnalysisInteractive('risk-text');
+                
                 document.getElementById('results').classList.remove('hidden');
                 window.scrollTo(0, 0);
             } else {
@@ -271,14 +332,12 @@
         window.handleExport = function() {
             const { jsPDF } = window.jspdf;
             const doc = new jsPDF();
-            const summaryText = document.getElementById('summary-text').innerText;
-            const riskText = document.getElementById('risk-text').innerText;
             doc.text("LexiGuard - Document Analysis", 10, 10);
             doc.text("Summary & Action Plan", 10, 20);
-            doc.text(summaryText, 10, 30, { maxWidth: 180 });
+            doc.text(document.getElementById('summary-text').innerText, 10, 30, { maxWidth: 180 });
             doc.addPage();
             doc.text("Risk Radar", 10, 10);
-            doc.text(riskText, 10, 20, { maxWidth: 180 });
+            doc.text(document.getElementById('risk-text').innerText, 10, 20, { maxWidth: 180 });
             doc.save("LexiGuide-Analysis.pdf");
         }
         window.handleShare = async function() {
@@ -304,12 +363,56 @@
             }
         }
         
-        // --- NEW FEATURES: GLOSSARY, THEME, ONBOARDING ---
+        // --- STANDALONE FEATURE LOGIC ---
+        window.handleClauseAnalyze = async function() {
+            const clauseText = document.getElementById('clause-input').value;
+            const language = document.getElementById('language-selector').value;
+            if (!clauseText.trim()) { alert("Please paste a clause to analyze."); return; }
+            const resultPre = document.getElementById('clause-result');
+            resultPre.textContent = "Analyzing...";
+            resultPre.classList.remove('hidden');
+            try {
+                const response = await fetch('/analyze_clause', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ clause_text: clauseText, language: language })
+                });
+                if (!response.ok) { throw new Error((await response.json()).error); }
+                const data = await response.json();
+                resultPre.textContent = data.explanation;
+            } catch (error) {
+                resultPre.textContent = "Error: " + error.message;
+            }
+        }
+        window.handleCompare = async function() {
+            const docAUploader = document.getElementById('doc-a-uploader');
+            const docBUploader = document.getElementById('doc-b-uploader');
+            if (docAUploader.files.length === 0 || docBUploader.files.length === 0) {
+                alert("Please upload both documents."); return;
+            }
+            const formData = new FormData();
+            formData.append('doc_a', docAUploader.files[0]);
+            formData.append('doc_b', docBUploader.files[0]);
+            formData.append('language', document.getElementById('language-selector').value);
+            const resultPre = document.getElementById('compare-result');
+            resultPre.textContent = "Comparing...";
+            resultPre.classList.remove('hidden');
+            try {
+                const response = await fetch('/compare', { method: 'POST', body: formData });
+                if (!response.ok) { throw new Error((await response.json()).error); }
+                const data = await response.json();
+                resultPre.textContent = data.comparison;
+            } catch (error) {
+                resultPre.textContent = "Error: " + error.message;
+            }
+        }
+
+        // --- UI ENHANCEMENT LOGIC ---
         const LEGAL_TERMS = ["indemnity", "escrow", "lessee", "lessor", "collateral", "tenure", "sublet", "arbitration", "liability", "jurisdiction", "notary", "stamp duty", "force majeure", "annexure", "perpetuity", "waiver"];
         function makeAnalysisInteractive(elementId) {
             const element = document.getElementById(elementId);
             if (!element) return;
-            let content = element.innerHTML;
+            let content = element.textContent; // Use textContent to avoid issues with existing HTML
             LEGAL_TERMS.forEach(term => {
                 const regex = new RegExp(`\\b(${term})\\b`, 'gi');
                 content = content.replace(regex, `<span class="legal-term" onclick="handleTermClick(this)">$1</span>`);
@@ -349,13 +452,13 @@
                 themeToggle.textContent = '☀️';
             }
         });
-        
         const tourSteps = [
-            { element: '.header-controls', title: 'Welcome!', text: 'This is LexiGuard. Let\'s quickly go over the key features.' },
+            { element: '#main-analyzer', title: 'Welcome to LexiGuard!', text: 'This is the main analysis tool. Let\'s quickly go over the key features.' },
             { element: '#tags-input', title: '1. Add Tags', text: 'Before uploading, add tags to organize and search for your documents later.' },
-            { element: '.upload-controls', title: '2. Select & Upload', text: 'Choose your language, document type, and then upload your PDF file for analysis.' },
-            { element: '#dashboard', title: '3. Document History', text: 'All your past analyses are saved here. You can search them by the tags you added.' },
-            { element: '#theme-toggle', title: 'Toggle Theme', text: 'You can switch between light and dark mode anytime.' }
+            { element: '#dashboard', title: '2. Document History', text: 'All your past analyses are saved here. You can search them by the tags you added.' },
+            { element: '#clause-analyzer', title: '3. Clause Deep Dive', text: 'Have a specific, confusing clause? Paste it here for a focused analysis.' },
+            { element: '#document-comparer', title: '4. Compare Documents', text: 'Upload two versions of a document to see exactly what has changed.' },
+            { element: '#theme-toggle', title: 'Toggle Theme', text: 'Finally, you can switch between light and dark mode anytime.' }
         ];
         function showTourStep(index) {
             const existingTourStep = document.querySelector('.tour-step');
@@ -369,7 +472,8 @@
             const targetRect = targetElement.getBoundingClientRect();
             let top = targetRect.bottom + 10;
             let left = targetRect.left;
-            if ((top + 150) > window.innerHeight) { top = targetRect.top - 160; }
+            if ((top + 180) > window.innerHeight) { top = targetRect.top - 190; }
+            if (left < 10) { left = 10; }
             if ((left + 350) > window.innerWidth) { left = window.innerWidth - 360; }
             tourStepDiv.style.left = `${left}px`;
             tourStepDiv.style.top = `${top}px`;
