@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>LexiGuard - Your Document Vault</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; max-width: 900px; margin: 40px auto; padding: 20px; line-height: 1.6; background-color: #f9f9f9; color: #333;}
         h1, h2, h3 { color: #4a4a4a; }
@@ -22,6 +23,9 @@
         .auth-form input { width: 95%; }
         #auth-toggle { color: #007bff; cursor: pointer; text-decoration: underline; }
         .past-analysis-item { border-bottom: 1px solid #eee; padding: 10px 0; }
+        .tags-input { flex-grow: 1; min-width: 200px; }
+        .dashboard-controls { display: flex; align-items: center; gap: 10px; margin-bottom: 15px; }
+        .action-buttons button { margin-right: 10px; background-color: #6c757d; font-size: 14px; padding: 8px 12px; }
     </style>
 </head>
 <body>
@@ -36,18 +40,14 @@
         <div id="login-container" class="auth-container">
             <h2>Login</h2>
             <div class="auth-form">
-                <input type="email" id="login-email" placeholder="Email">
-                <input type="password" id="login-password" placeholder="Password">
-                <button id="login-button">Login</button>
+                <input type="email" id="login-email" placeholder="Email"><input type="password" id="login-password" placeholder="Password"><button id="login-button">Login</button>
                 <p>Don't have an account? <span id="auth-toggle" onclick="toggleAuthForms()">Sign up</span></p>
             </div>
         </div>
         <div id="signup-container" class="auth-container hidden">
             <h2>Sign Up</h2>
             <div class="auth-form">
-                <input type="email" id="signup-email" placeholder="Email">
-                <input type="password" id="signup-password" placeholder="Password">
-                <button id="signup-button">Sign Up</button>
+                <input type="email" id="signup-email" placeholder="Email"><input type="password" id="signup-password" placeholder="Password"><button id="signup-button">Sign Up</button>
                 <p>Already have an account? <span id="auth-toggle" onclick="toggleAuthForms()">Login</span></p>
             </div>
         </div>
@@ -56,35 +56,35 @@
         <div class="container">
             <h3>1. Analyze New Document</h3>
             <div class="upload-controls">
+                <input type="text" id="tags-input" class="tags-input" placeholder="Add tags, comma-separated (e.g., rental, 2025)">
                 <select id="language-selector"><option value="English">English</option><option value="Hinglish">Hinglish</option><option value="Hindi">हिन्दी</option><option value="Telugu">తెలుగు</option><option value="Tamil">தமிழ்</option><option value="Gujarati">ગુજરાતી</option></select>
                 <select id="doc-type-selector"><option value="Rental Agreement">Rental Agreement</option><option value="Loan Contract">Loan Contract</option><option value="Terms of Service">Terms of Service</option></select>
                 <input type="file" id="doc-uploader" accept=".pdf">
                 <button onclick="handleAnalyze()">Analyze</button>
             </div>
+            <p id="upload-status" style="font-weight: bold;"></p>
         </div>
         <div id="loader" class="hidden"></div>
         <div id="results" class="hidden">
             <hr>
+            <div class="action-buttons"><button onclick="handleExport()">Export as PDF</button><button onclick="handleShare()">Share Analysis</button></div>
             <div class="analysis-section"><h3>✅ Summary & Action Plan</h3><pre id="summary-text" class="summary-analysis"></pre></div>
             <div class="analysis-section"><h3>🚨 Risk Radar</h3><pre id="risk-text" class="risk-analysis"></pre></div>
         </div>
         <div id="dashboard" class="dashboard-container">
             <h2>Your Document History</h2>
+            <div class="dashboard-controls"><input type="text" id="search-input" placeholder="Search by tag..."><button onclick="handleSearch()">Search</button></div>
             <div id="past-analyses-list"></div>
         </div>
     </div>
 
     <script type="module">
-        // Import the functions you need from the SDKs you need
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
         import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-        import { getFirestore, collection, doc, getDoc, getDocs, query, orderBy, setDoc, Timestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-
-        // *********************************************************************************
-        // ** STEP 1: PASTE YOUR FIREBASE CONFIGURATION OBJECT HERE **
-        // ** Replace the placeholder below with the object from your screenshot **
-        // *********************************************************************************
-        // For Firebase JS SDK v7.20.0 and later, measurementId is optional
+        import { getFirestore, collection, doc, getDoc, getDocs, query, where, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+        
+        // --- PASTE YOUR FIREBASE CONFIG HERE ---
+       // For Firebase JS SDK v7.20.0 and later, measurementId is optional
         const firebaseConfig = {
         apiKey: "AIzaSyA33tEkjkJjoZr0l-DNxwevv9phRA9GkjY",
         authDomain: "lexiguide-hackathon-2025.firebaseapp.com",
@@ -95,14 +95,13 @@
         measurementId: "G-FHQW7RH75X"
         };
         
-        // Initialize Firebase
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
 
-        // --- All the JS logic from before, but updated for the new SDK ---
+        let currentDocId = null;
 
-        // UI Elements
+        // --- AUTHENTICATION LOGIC ---
         const authSection = document.getElementById('auth-section');
         const appContent = document.getElementById('app-content');
         const userInfo = document.getElementById('user-info');
@@ -110,8 +109,6 @@
         const loginContainer = document.getElementById('login-container');
         const signupContainer = document.getElementById('signup-container');
         
-        // --- AUTHENTICATION LOGIC ---
-
         window.toggleAuthForms = function() {
             loginContainer.classList.toggle('hidden');
             signupContainer.classList.toggle('hidden');
@@ -135,47 +132,44 @@
         document.getElementById('signup-button').addEventListener('click', () => {
             const email = document.getElementById('signup-email').value;
             const password = document.getElementById('signup-password').value;
-            createUserWithEmailAndPassword(auth, email, password)
-                .catch(error => alert(error.message));
+            createUserWithEmailAndPassword(auth, email, password).catch(error => alert(error.message));
         });
 
         document.getElementById('login-button').addEventListener('click', () => {
             const email = document.getElementById('login-email').value;
             const password = document.getElementById('login-password').value;
-            signInWithEmailAndPassword(auth, email, password)
-                .catch(error => alert(error.message));
+            signInWithEmailAndPassword(auth, email, password).catch(error => alert(error.message));
         });
 
         document.getElementById('logout-button').addEventListener('click', () => {
             signOut(auth);
         });
 
-
-        // --- CORE APP LOGIC ---
+        // --- SIMPLIFIED CORE APP LOGIC ---
+        const ANALYZE_URL = 'http://127.0.0.1:5000/analyze';
 
         window.handleAnalyze = async function() {
             const user = auth.currentUser;
-            if (!user) { alert("Please log in to analyze a document."); return; }
-
+            if (!user) { alert("Please log in."); return; }
             const uploader = document.getElementById('doc-uploader');
             if (uploader.files.length === 0) { alert("Please select a PDF file."); return; }
 
-            const docTypeSelector = document.getElementById('doc-type-selector');
-            const langSelector = document.getElementById('language-selector');
             const file = uploader.files[0];
-
             const formData = new FormData();
             formData.append('document', file);
-            formData.append('doc_type', docTypeSelector.value);
-            formData.append('language', langSelector.value);
+            formData.append('doc_type', document.getElementById('doc-type-selector').value);
+            formData.append('language', document.getElementById('language-selector').value);
             formData.append('filename', file.name);
+            formData.append('tags', document.getElementById('tags-input').value);
 
             document.getElementById('loader').classList.remove('hidden');
             document.getElementById('results').classList.add('hidden');
+            const uploadStatusP = document.getElementById('upload-status');
+            if (uploadStatusP) uploadStatusP.textContent = 'Analyzing... this may take a moment.';
 
             try {
                 const token = await user.getIdToken();
-                const response = await fetch('/analyze', {
+                const response = await fetch(ANALYZE_URL, {
                     method: 'POST',
                     headers: { 'Authorization': 'Bearer ' + token },
                     body: formData
@@ -183,37 +177,56 @@
 
                 if (!response.ok) {
                     const errorData = await response.json();
-                    throw new Error(errorData.error || "An unknown error occurred.");
+                    throw new Error(errorData.error || "Analysis failed.");
                 }
 
                 const data = await response.json();
+                
+                currentDocId = data.doc_id;
                 document.getElementById('summary-text').textContent = data.summary_and_checklist;
                 document.getElementById('risk-text').textContent = data.risk_analysis;
                 document.getElementById('results').classList.remove('hidden');
+                
+                if (uploadStatusP) uploadStatusP.textContent = 'Analysis complete!';
+                uploader.value = '';
+                
                 loadUserDocuments(user.uid);
 
             } catch (error) {
                 alert("Error: " + error.message);
+                if (uploadStatusP) uploadStatusP.textContent = '';
             } finally {
                 document.getElementById('loader').classList.add('hidden');
             }
         }
+        
+        window.handleSearch = function() {
+            const user = auth.currentUser;
+            if (!user) return;
+            const searchTerm = document.getElementById('search-input').value;
+            loadUserDocuments(user.uid, searchTerm.trim().toLowerCase());
+        }
 
-        async function loadUserDocuments(userId) {
+        async function loadUserDocuments(userId, searchTerm = null) {
             const listElement = document.getElementById('past-analyses-list');
             listElement.innerHTML = "Loading history...";
 
             try {
+                let documentsQuery;
                 const documentsColRef = collection(db, 'users', userId, 'documents');
-                const q = query(documentsColRef, orderBy('analyzedAt', 'desc'));
-                const querySnapshot = await getDocs(q);
                 
-                listElement.innerHTML = "";
-                if (querySnapshot.empty) {
-                    listElement.innerHTML = "<p>No documents analyzed yet.</p>";
-                    return;
+                if (searchTerm) {
+                    documentsQuery = query(documentsColRef, where("tags", "array-contains", searchTerm), orderBy('analyzedAt', 'desc'));
+                } else {
+                    documentsQuery = query(documentsColRef, orderBy('analyzedAt', 'desc'));
                 }
 
+                const querySnapshot = await getDocs(documentsQuery);
+                listElement.innerHTML = "";
+                if (querySnapshot.empty) {
+                    listElement.innerHTML = `<p>No documents found${searchTerm ? ' with that tag' : ''}.</p>`;
+                    return;
+                }
                 querySnapshot.forEach(docSnap => {
                     const docData = docSnap.data();
                     const item = document.createElement('div');
@@ -221,6 +234,7 @@
                     item.innerHTML = `
                         <h4>${docData.filename} (${docData.doc_type})</h4>
                         <p>Analyzed on: ${docData.analyzedAt.toDate().toLocaleString()}</p>
+                        ${docData.tags && docData.tags.length > 0 ? `<p>Tags: ${docData.tags.join(', ')}</p>` : ''}
                         <button onclick="viewAnalysis('${docSnap.id}')">View Analysis</button>
                     `;
                     listElement.appendChild(item);
@@ -234,17 +248,58 @@
         window.viewAnalysis = async function(docId) {
             const user = auth.currentUser;
             if (!user) return;
-
+            
             const docRef = doc(db, 'users', user.uid, 'documents', docId);
             const docSnap = await getDoc(docRef);
+
             if (docSnap.exists()) {
                 const data = docSnap.data();
+                currentDocId = docId; // Set current doc ID for sharing
                 document.getElementById('summary-text').textContent = data.summary_and_checklist;
                 document.getElementById('risk-text').textContent = data.risk_analysis;
                 document.getElementById('results').classList.remove('hidden');
                 window.scrollTo(0, 0);
             } else {
                 alert("Could not find analysis.");
+            }
+        }
+        
+        window.handleExport = function() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            const summaryText = document.getElementById('summary-text').innerText;
+            const riskText = document.getElementById('risk-text').innerText;
+            doc.text("LexiGuard - Document Analysis", 10, 10);
+            doc.text("Summary & Action Plan", 10, 20);
+            doc.text(summaryText, 10, 30, { maxWidth: 180 });
+            doc.addPage();
+            doc.text("Risk Radar", 10, 10);
+            doc.text(riskText, 10, 20, { maxWidth: 180 });
+            doc.save("LexiGuide-Analysis.pdf");
+        }
+
+        window.handleShare = async function() {
+            const user = auth.currentUser;
+            if (!user || !currentDocId) {
+                alert("Please view an analysis before sharing.");
+                return;
+            }
+            try {
+                const token = await user.getIdToken();
+                const response = await fetch('/create_share_link', {
+                    method: 'POST',
+                    headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ doc_id: currentDocId })
+                });
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error);
+                }
+                const data = await response.json();
+                const shareLink = `${window.location.origin}/share.html?id=${data.share_id}`;
+                prompt("Here is your shareable link:", shareLink);
+            } catch (error) {
+                alert("Could not create share link: " + error.message);
             }
         }
     </script>
