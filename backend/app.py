@@ -24,7 +24,8 @@ genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 app = Flask(__name__, static_folder='../frontend', static_url_path='/')
 
 # --- HELPER FUNCTIONS ---
-def extract_text_from_pdf(file_stream, file_extension):
+def extract_text_from_file(file_stream, file_extension):
+    """Extracts text from PDF, DOCX, and Image files, using OCR for images."""
     text = ""
     if file_extension == ".pdf":
         try:
@@ -33,16 +34,13 @@ def extract_text_from_pdf(file_stream, file_extension):
                     page_text = page.extract_text()
                     if page_text:
                         text += page_text + "\n"
-            
-            # If text is still short, try OCR as a fallback
-            if len(text.strip()) < 100:
-                file_stream.seek(0) # Reset stream pointer
+            if len(text.strip()) < 100: # Fallback to OCR for scanned PDFs
+                file_stream.seek(0)
                 text = ""
                 with pdfplumber.open(file_stream) as pdf:
-                    for i, page in enumerate(pdf.pages):
-                        im = page.to_image()
-                        # Use pytesseract to do OCR on the image
-                        text += pytesseract.image_to_string(im.original)
+                    for page in pdf.pages:
+                        im = page.to_image(resolution=300)
+                        text += pytesseract.image_to_string(im.original) + "\n"
             return text
         except Exception as e:
             print(f"Error reading PDF: {e}")
@@ -50,12 +48,17 @@ def extract_text_from_pdf(file_stream, file_extension):
     elif file_extension in [".docx", ".doc"]:
         try:
             doc = docx.Document(file_stream)
-            full_text = []
-            for para in doc.paragraphs:
-                full_text.append(para.text)
-            return '\n'.join(full_text)
+            return '\n'.join([para.text for para in doc.paragraphs])
         except Exception as e:
-            print(f"Error reading DOCX: {e}")
+            print(f"Error reading DOCX/DOC: {e}")
+            return None
+    elif file_extension in [".png", ".jpg", ".jpeg"]:
+        try:
+            image = Image.open(file_stream)
+            text = pytesseract.image_to_string(image)
+            return text
+        except Exception as e:
+            print(f"Error reading image file: {e}")
             return None
     return None
 
@@ -70,10 +73,15 @@ def get_gemini_response(prompt):
         return f"Sorry, there was an error with the AI model: {e}"
 
 # --- PROMPT TEMPLATES ---
-CLASSIFY_PROMPT = """
-Analyze the following document text and determine its type and the overall sentiment from the user's perspective. The document can be one of: "Rental Agreement", "Loan Contract", or "Terms of Service". The sentiment can be "Positive", "Neutral", or "Negative".
+DETECT_JURISDICTION_PROMPT = """
+Analyze the following document text and identify the country or primary legal jurisdiction it pertains to. Look for clues like country names, state/province names, specific laws, currency symbols, or government bodies mentioned. Return a single string with the name of the jurisdiction (e.g., "USA", "India", "United Kingdom"). If you cannot determine the jurisdiction, return "Unknown".
 
-Return a single, valid JSON object with the keys "doc_type" and "sentiment".
+DOCUMENT TEXT: "{document_text}"
+JURISDICTION:
+"""
+
+CLASSIFY_PROMPT = """
+Analyze the following document text and determine its type and the overall sentiment from the user's perspective. The document can be one of: "Rental Agreement", "Loan Contract", or "Terms of Service". The sentiment can be "Positive", "Neutral", or "Negative". Return a single, valid JSON object with the keys "doc_type" and "sentiment".
 
 DOCUMENT TEXT: "{document_text}"
 RESPONSE:
@@ -95,42 +103,50 @@ Provide a clear, bulleted summary and a 3-4 point action checklist for the user.
 DOCUMENT TEXT: "{document_text}"
 RESPONSE:
 """
+
 RISK_ANALYSIS_PROMPT = """
 You are a paralegal AI. Based on the following document text from {jurisdiction}, identify potential risks, ambiguous clauses, or "gotcha" clauses for the primary user. List each risk with a simple explanation. If no significant risks are found, state that the document appears to be standard. Provide the entire response in the {language} language.
 DOCUMENT TEXT: "{document_text}"
 RISK ANALYSIS in {language}:
 """
+
 QUESTIONS_TO_ASK_PROMPT = """
 Based on the following list of identified risks from a legal document, generate a bulleted list of 3-4 polite, specific, and actionable questions the user should ask the other party (e.g., landlord, bank, service provider) to clarify these points. Provide the entire response in the {language} language.
 IDENTIFIED RISKS: "{risk_analysis_text}"
 QUESTIONS TO ASK in {language}:
 """
+
 LEGAL_FORMALITIES_PROMPT = """
 Based on this document being a {doc_type} from {jurisdiction}, provide a short, general paragraph about typical legal formalities. This could include requirements like stamp duty, registration, notarization, or witnessing. Start with a clear disclaimer that this is not legal advice and requirements vary by state/region. Provide the entire response in the {language} language.
 GUIDANCE in {language}:
 """
+
 MISSING_CLAUSES_PROMPT = """
 You are an expert legal assistant. Based on the document text being a standard {doc_type} in {jurisdiction}, what are the top 3-4 standard legal clauses that are surprisingly MISSING from the text? This is very important. For each missing clause, briefly explain why it's usually included. If nothing significant is missing, state that the document appears to be comprehensive. Provide the entire response in the {language} language.
 DOCUMENT TEXT: "{document_text}"
 MISSING CLAUSES ANALYSIS in {language}:
 """
+
 ANALYZE_CLAUSE_PROMPT = """
 Explain the following legal clause from a contract in {jurisdiction} in simple terms and highlight any potential risks for the user. Provide the entire response in the {language} language.
 CLAUSE TEXT: "{clause_text}"
 EXPLANATION AND RISKS in {language}:
 """
+
 COMPARE_PROMPT = """
 You are an expert legal AI. Compare the two document texts below. Provide a bulleted list of the key differences, additions, and removals in "Document B" compared to "Document A". Focus on changes related to finances, dates, and responsibilities. Provide the entire response in the {language} language.
 DOCUMENT A (Old): "{doc_a_text}"
 DOCUMENT B (New): "{doc_b_text}"
 COMPARISON ANALYSIS in {language}:
 """
+
 EXPLAIN_TERM_PROMPT = """
 You are an AI legal assistant. Explain the following legal term in one simple sentence, as you would to a non-lawyer.
 Provide the entire response in the {language} language.
 LEGAL TERM: "{term}"
 SIMPLE EXPLANATION:
 """
+
 
 # --- FLASK ROUTES ---
 
@@ -147,28 +163,28 @@ def analyze_document():
         
     file = request.files['document']
     language = request.form.get('language', 'English')
-    jurisdiction = request.form.get('jurisdiction', 'a general jurisdiction') # New
     filename = request.form.get('filename', 'Untitled')
     tags_string = request.form.get('tags', '')
     tags_array = [tag.strip().lower() for tag in tags_string.split(',') if tag.strip()]
-
-    # Get file extension for the helper function
     file_extension = os.path.splitext(filename)[1].lower()
 
     try:
-        # Use updated helper to extract text
-        document_text = extract_text_from_pdf(file.stream, file_extension)
+        document_text = extract_text_from_file(file.stream, file_extension)
         if not document_text or len(document_text.strip()) < 50:
-             return jsonify({"error": "Could not extract sufficient text from this document. It may be a scanned image. OCR is attempted but may not always succeed."}), 400
+             return jsonify({"error": "Could not extract sufficient text from the document. Please upload a clearer file."}), 400
 
-        # --- Step 1: Classify the document and get sentiment ---
+        # --- Step 1: Auto-detect Jurisdiction ---
+        jurisdiction_prompt = DETECT_JURISDICTION_PROMPT.format(document_text=document_text)
+        jurisdiction = get_gemini_response(jurisdiction_prompt).strip()
+
+        # --- Step 2: Classify and get sentiment ---
         classify_prompt = CLASSIFY_PROMPT.format(document_text=document_text)
         classification_response = get_gemini_response(classify_prompt)
         classification_json = json.loads(classification_response)
         doc_type = classification_json.get("doc_type", "General Document")
         sentiment = classification_json.get("sentiment", "Neutral")
 
-        # --- Step 2: Run the main analysis ---
+        # --- Step 3: Run the main analysis ---
         main_prompt = MAIN_ANALYSIS_PROMPT.format(document_text=document_text, language=language, jurisdiction=jurisdiction)
         main_response = get_gemini_response(main_prompt)
         
@@ -179,27 +195,27 @@ def analyze_document():
             if json_start != -1 and json_end != -1:
                 json_string = main_response[json_start:json_end]
                 key_info_json = json.loads(json_string)
-                key_info_json["sentiment"] = sentiment # Add sentiment to the key info
+                key_info_json["sentiment"] = sentiment
+                key_info_json["detected_jurisdiction"] = jurisdiction # Add jurisdiction to key info
                 summary_and_checklist = main_response[json_end:].strip()
         except Exception as e:
             print(f"JSON parsing error: {e}")
-            key_info_json = {"sentiment": sentiment} # Still include sentiment on failure
+            key_info_json = {"sentiment": sentiment, "detected_jurisdiction": jurisdiction}
 
-
-        # --- Step 3: Run specialized analyses ---
+        # --- Step 4: Run specialized analyses ---
         risk_prompt = RISK_ANALYSIS_PROMPT.format(document_text=document_text, language=language, jurisdiction=jurisdiction)
         risk_analysis = get_gemini_response(risk_prompt)
         
         questions_prompt = QUESTIONS_TO_ASK_PROMPT.format(risk_analysis_text=risk_analysis, language=language)
         questions_to_ask = get_gemini_response(questions_prompt)
-        
+
         formalities_prompt = LEGAL_FORMALITIES_PROMPT.format(doc_type=doc_type, language=language, jurisdiction=jurisdiction)
         legal_formalities_guidance = get_gemini_response(formalities_prompt)
         
         missing_clauses_prompt = MISSING_CLAUSES_PROMPT.format(doc_type=doc_type, document_text=document_text, language=language, jurisdiction=jurisdiction)
         missing_clauses = get_gemini_response(missing_clauses_prompt)
 
-        # --- Step 4: Save to Firestore ---
+        # --- Step 5: Save to Firestore ---
         doc_ref = db.collection('users').document(uid).collection('documents').document()
         doc_ref.set({
             'filename': filename, 'doc_type': doc_type, 'language': language, 'jurisdiction': jurisdiction,
@@ -210,7 +226,7 @@ def analyze_document():
             'tags': tags_array, 'analyzedAt': datetime.datetime.now(tz=datetime.timezone.utc),
         })
         
-        # --- Step 5: Return the full response ---
+        # --- Step 6: Return full response ---
         return jsonify({
             "key_info": key_info_json, "summary_and_checklist": summary_and_checklist,
             "risk_analysis": risk_analysis, "questions_to_ask": questions_to_ask,
@@ -267,12 +283,11 @@ def compare():
         return jsonify({"error": "Please upload both documents."}), 400
     language = request.form.get('language', 'English')
     try:
-        # Get file extensions for comparison
         doc_a_ext = os.path.splitext(request.files['doc_a'].filename)[1].lower()
         doc_b_ext = os.path.splitext(request.files['doc_b'].filename)[1].lower()
         
-        doc_a_text = extract_text_from_pdf(request.files['doc_a'].stream, doc_a_ext)
-        doc_b_text = extract_text_from_pdf(request.files['doc_b'].stream, doc_b_ext)
+        doc_a_text = extract_text_from_file(request.files['doc_a'].stream, doc_a_ext)
+        doc_b_text = extract_text_from_file(request.files['doc_b'].stream, doc_b_ext)
 
         if not doc_a_text or not doc_b_text:
             return jsonify({"error": "Could not extract text from one or both documents."}), 400

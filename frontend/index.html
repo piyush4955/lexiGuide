@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LexiGuide - Your Document AI Assistant</title>
+    <title>LexiGuard - Your Document AI Assistant</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <style>
         :root {
@@ -51,7 +51,7 @@
 </head>
 <body>
     <div style="display: flex; justify-content: space-between; align-items: center;">
-        <h1>LexiGuide</h1>
+        <h1>LexiGuard</h1>
         <div class="header-controls">
             <div id="help-btn" class="help-button" title="Start Guided Tour">❓</div>
             <div id="theme-toggle" class="theme-switch" title="Toggle Dark/Light Mode">🌙</div>
@@ -79,10 +79,8 @@
             <h3>1. Analyze New Document</h3>
             <div class="upload-controls">
                 <input type="text" id="tags-input" class="tags-input" placeholder="Add tags, comma-separated (e.g., rental, 2025)">
-                <input type="text" id="jurisdiction-input" placeholder="Enter Country/Jurisdiction (e.g., USA, UK)" style="flex-grow: 1; min-width: 200px;">
                 <select id="language-selector"><option value="English">English</option><option value="Hinglish">Hinglish</option><option value="Hindi">हिन्दी</option><option value="Telugu">తెలుగు</option><option value="Tamil">தமிழ்</option><option value="Gujarati">ગુજરાતી</option></select>
-                <select id="doc-type-selector"><option value="Rental Agreement">Rental Agreement</option><option value="Loan Contract">Loan Contract</option><option value="Terms of Service">Terms of Service</option></select>
-                <input type="file" id="doc-uploader" accept=".pdf">
+                <input type="file" id="doc-uploader" accept=".pdf,.docx,.doc,.png,.jpg,.jpeg">
                 <button onclick="handleAnalyze()">Analyze</button>
             </div>
             <p id="upload-status" style="font-weight: bold;"></p>
@@ -96,7 +94,6 @@
             <div class="analysis-section"><h3>🚨 Risk Radar</h3><pre id="risk-text" class="risk-analysis"></pre></div>
             <div class="analysis-section"><h3>❓ Questions You Should Ask</h3><pre id="questions-text"></pre></div>
             <div class="analysis-section"><h3>⚠️ What Might Be Missing</h3><pre id="missing-clauses-text" class="missing-analysis"></pre></div>
-            <div class="analysis-section"><h3>📜 Stamp Duty & Registration Guidance</h3><pre id="stamp-duty-text"></pre></div>
             <div class="analysis-section"><h3>📜 Legal Formalities & Guidance</h3><pre id="stamp-duty-text"></pre></div>
         </div>
         <div id="dashboard" class="dashboard-container">
@@ -114,8 +111,8 @@
         <div class="feature-container container" id="document-comparer">
             <h3>Document Comparison ("What's Changed?")</h3>
             <p>Upload an old and new version of a document to see the differences.</p>
-            <div>Old Document: <input type="file" id="doc-a-uploader" accept=".pdf"></div>
-            <div>New Document: <input type="file" id="doc-b-uploader" accept=".pdf"></div>
+            <div>Old Document: <input type="file" id="doc-a-uploader" accept=".pdf,.docx,.doc,.png,.jpg,.jpeg"></div>
+            <div>New Document: <input type="file" id="doc-b-uploader" accept=".pdf,.docx,.doc,.png,.jpg,.jpeg"></div>
             <button onclick="handleCompare()">Compare Documents</button>
             <pre id="compare-result" class="hidden"></pre>
         </div>
@@ -126,18 +123,14 @@
         import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
         import { getFirestore, collection, doc, getDoc, getDocs, query, where, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
         
-        // =================================================================================
-        // ** CRITICAL STEP: PASTE YOUR UNIQUE FIREBASE CONFIGURATION OBJECT HERE **
-        // =================================================================================
-        // For Firebase JS SDK v7.20.0 and later, measurementId is optional
         const firebaseConfig = {
-        apiKey: "AIzaSyA33tEkjkJjoZr0l-DNxwevv9phRA9GkjY",
-        authDomain: "lexiguide-hackathon-2025.firebaseapp.com",
-        projectId: "lexiguide-hackathon-2025",
-        storageBucket: "lexiguide-hackathon-2025.firebasestorage.app",
-        messagingSenderId: "814528861476",
-        appId: "1:814528861476:web:7d3ce97018abd1a8dc0fb1",
-        measurementId: "G-FHQW7RH75X"
+            apiKey: "AIzaSyA33tEkjkJjoZr0l-DNxwevv9phRA9GkjY",
+            authDomain: "lexiguide-hackathon-2025.firebaseapp.com",
+            projectId: "lexiguide-hackathon-2025",
+            storageBucket: "lexiguide-hackathon-2025.firebasestorage.app",
+            messagingSenderId: "814528861476",
+            appId: "1:814528861476:web:7d3ce97018abd1a8dc0fb1",
+            measurementId: "G-FHQW7RH75X"
         };
         
         const app = initializeApp(firebaseConfig);
@@ -192,7 +185,6 @@
         });
 
         // --- CORE APP LOGIC ---
-        const ANALYZE_URL = 'http://127.0.0.1:5000/analyze';
         window.handleAnalyze = async function() {
             const user = auth.currentUser;
             if (!user) { alert("Please log in."); return; }
@@ -201,9 +193,7 @@
             const file = uploader.files[0];
             const formData = new FormData();
             formData.append('document', file);
-            formData.append('doc_type', document.getElementById('doc-type-selector').value);
             formData.append('language', document.getElementById('language-selector').value);
-            formData.append('jurisdiction', document.getElementById('jurisdiction-input').value); // Add this line
             formData.append('filename', file.name);
             formData.append('tags', document.getElementById('tags-input').value);
             document.getElementById('loader').classList.remove('hidden');
@@ -212,7 +202,7 @@
             if (uploadStatusP) uploadStatusP.textContent = 'Analyzing... this may take a moment.';
             try {
                 const token = await user.getIdToken();
-                const response = await fetch(ANALYZE_URL, {
+                const response = await fetch('/analyze', {
                     method: 'POST',
                     headers: { 'Authorization': 'Bearer ' + token },
                     body: formData
@@ -272,7 +262,7 @@
                     item.innerHTML = `
                         <h4>${docData.filename} (${docData.doc_type})</h4>
                         <p>Analyzed on: ${docData.analyzedAt.toDate().toLocaleString()}</p>
-                        ${docData.tags && docData.tags.length > 0 ? `<p>Tags: ${docData.tags.join(', ')}</p>` : ''}
+                        ${docData.tags && docData.tags.length > 0 ? `<p>Jurisdiction: ${docData.jurisdiction || 'N/A'}<br>Tags: ${docData.tags.join(', ')}</p>` : ''}
                         <button onclick="viewAnalysis('${docSnap.id}')">View Analysis</button>
                     `;
                     listElement.appendChild(item);
