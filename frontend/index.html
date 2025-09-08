@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LexiGuard - Your Document AI Assistant</title>
+    <title>LexiGuide - Your Document AI Assistant</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <style>
         :root {
@@ -51,7 +51,7 @@
 </head>
 <body>
     <div style="display: flex; justify-content: space-between; align-items: center;">
-        <h1>LexiGuard</h1>
+        <h1>LexiGuide</h1>
         <div class="header-controls">
             <div id="help-btn" class="help-button" title="Start Guided Tour">❓</div>
             <div id="theme-toggle" class="theme-switch" title="Toggle Dark/Light Mode">🌙</div>
@@ -79,6 +79,7 @@
             <h3>1. Analyze New Document</h3>
             <div class="upload-controls">
                 <input type="text" id="tags-input" class="tags-input" placeholder="Add tags, comma-separated (e.g., rental, 2025)">
+                <input type="text" id="jurisdiction-input" placeholder="Enter Country/Jurisdiction (e.g., USA, UK)" style="flex-grow: 1; min-width: 200px;">
                 <select id="language-selector"><option value="English">English</option><option value="Hinglish">Hinglish</option><option value="Hindi">हिन्दी</option><option value="Telugu">తెలుగు</option><option value="Tamil">தமிழ்</option><option value="Gujarati">ગુજરાતી</option></select>
                 <select id="doc-type-selector"><option value="Rental Agreement">Rental Agreement</option><option value="Loan Contract">Loan Contract</option><option value="Terms of Service">Terms of Service</option></select>
                 <input type="file" id="doc-uploader" accept=".pdf">
@@ -96,6 +97,7 @@
             <div class="analysis-section"><h3>❓ Questions You Should Ask</h3><pre id="questions-text"></pre></div>
             <div class="analysis-section"><h3>⚠️ What Might Be Missing</h3><pre id="missing-clauses-text" class="missing-analysis"></pre></div>
             <div class="analysis-section"><h3>📜 Stamp Duty & Registration Guidance</h3><pre id="stamp-duty-text"></pre></div>
+            <div class="analysis-section"><h3>📜 Legal Formalities & Guidance</h3><pre id="stamp-duty-text"></pre></div>
         </div>
         <div id="dashboard" class="dashboard-container">
             <h2>Your Document History</h2>
@@ -201,6 +203,7 @@
             formData.append('document', file);
             formData.append('doc_type', document.getElementById('doc-type-selector').value);
             formData.append('language', document.getElementById('language-selector').value);
+            formData.append('jurisdiction', document.getElementById('jurisdiction-input').value); // Add this line
             formData.append('filename', file.name);
             formData.append('tags', document.getElementById('tags-input').value);
             document.getElementById('loader').classList.remove('hidden');
@@ -225,7 +228,7 @@
                 document.getElementById('risk-text').textContent = data.risk_analysis;
                 document.getElementById('questions-text').textContent = data.questions_to_ask;
                 document.getElementById('missing-clauses-text').textContent = data.missing_clauses;
-                document.getElementById('stamp-duty-text').textContent = data.stamp_duty_guidance;
+                document.getElementById('stamp-duty-text').textContent = data.legal_formalities_guidance;
                 makeAnalysisInteractive('summary-text');
                 makeAnalysisInteractive('risk-text');
                 document.getElementById('results').classList.remove('hidden');
@@ -292,7 +295,7 @@
                 document.getElementById('risk-text').textContent = data.risk_analysis;
                 document.getElementById('questions-text').textContent = data.questions_to_ask;
                 document.getElementById('missing-clauses-text').textContent = data.missing_clauses;
-                document.getElementById('stamp-duty-text').textContent = data.stamp_duty_guidance;
+                document.getElementById('stamp-duty-text').textContent = data.legal_formalities_guidance || data.stamp_duty_guidance;
                 makeAnalysisInteractive('summary-text');
                 makeAnalysisInteractive('risk-text');
                 document.getElementById('results').classList.remove('hidden');
